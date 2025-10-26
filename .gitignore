@@ -19,6 +19,9 @@
 .DS_Store
 *.pem
 
+# NFS lock files
+.nfs*
+
 # debug
 npm-debug.log*
 yarn-debug.log*
