@@ -15,17 +15,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const systemPrompt = (diagramTypes: string[]) => {
-const typesText = diagramTypes.length > 0 ? diagramTypes.join(', ') : 'various diagram types';
-return endent`
+const systemPrompt = (diagramTypes: string[], userMessage: string) => {
+  const typesText = diagramTypes.length > 0 ? diagramTypes.join(', ') : 'various diagram types';
+if (diagramTypes.length === 0) {
+    const escapedMessage = userMessage.replace(/"/g, '\\"').replace(/\\/g, '\\\\').replace(/\n/g, '\\n');
+    return endent`
 You are an assistant to help user build diagrams with Mermaid.
-The user has selected the following diagram types to generate: ${typesText}.
-Generate ONLY diagrams that match the selected types. Do not generate any additional diagrams beyond what was requested.
-If the selected types don't make sense for the user's description, still try to create diagrams that fit the selected types as closely as possible.
+The user has not selected any specific diagram types. Analyze the user's description carefully: "${escapedMessage}".
+Determine the most appropriate diagram types that would best represent the content and concepts described.
+Generate diagrams for the determined types. Aim for 2-9 relevant diagrams that provide comprehensive coverage.
 
-  IMPORTANT: When generating Data Flow Diagrams (DFD), use Mermaid's flowchart syntax, NOT a 'dfd' diagram type. Use 'flowchart TD' or 'flowchart LR' and represent processes, data stores, external entities, and data flows using appropriate node shapes and arrow connections.
-
-  For each diagram, provide the response in this exact format:
+For each diagram, provide the response in this exact format:
 %% title: Meaningful Title %%
 Description: Brief description of the diagram (1-2 sentences).
 
@@ -38,16 +38,40 @@ IMPORTANT:
 - Do NOT put any text inside the \`\`\`mermaid code block except valid Mermaid syntax
 - The description should be on its own line after "Description:"
 `;
+  } else {
+    return endent`
+You are an assistant to help user build diagrams with Mermaid.
+The user has selected the following diagram types to generate: ${typesText}.
+Generate ONE diagram for EACH selected type. Do not generate any additional diagrams beyond what was requested.
+If a selected type doesn't make sense for the user's description, still create a diagram that fits the type as closely as possible.
+
+IMPORTANT: When generating Data Flow Diagrams (DFD), use Mermaid's flowchart syntax, NOT a 'dfd' diagram type. Use 'flowchart TD' or 'flowchart LR' and represent processes, data stores, external entities, and data flows using appropriate node shapes and arrow connections.
+
+For each diagram, provide the response in this exact format:
+%% title: Meaningful Title %%
+Description: Brief description of the diagram (1-2 sentences).
+
+\`\`\`mermaid
+[Mermaid diagram code here]
+\`\`\`
+
+IMPORTANT:
+- Put the title and description BEFORE the mermaid code block
+- Do NOT put any text inside the \`\`\`mermaid code block except valid Mermaid syntax
+- The description should be on its own line after "Description:"
+`;
+  }
 };
 
 export const OpenAIStream = async (
-  messages: Message[],
-  model: string,
-  key: string,
-  diagramTypes: string[],
-  baseUrl?: string
+messages: Message[],
+model: string,
+key: string,
+diagramTypes: string[],
+baseUrl?: string
 ) => {
-  const system = { role: "system", content: systemPrompt(diagramTypes) };
+const userMessage = messages[messages.length - 1]?.content || '';
+  const system = { role: "system", content: systemPrompt(diagramTypes, userMessage) };
   const base = baseUrl ? (baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`) : "https://api.openai.com/v1";
   const res = await fetch(`${base}/chat/completions`, {
     headers: {

@@ -79,8 +79,8 @@ export const DiagramSelector: React.FC<DiagramSelectorProps> = ({
         <Button onClick={selectAll} variant="outline" size="sm">
           Select All
         </Button>
-        <Button onClick={unselectAll} variant="outline" size="sm">
-          Unselect All
+        <Button onClick={unselectAll} variant="outline" size="sm" title="Unselect all types to let the AI intelligently choose the most appropriate diagrams (2-9 diagrams)">
+        Unselect All
         </Button>
       </div>
       <div className="space-y-2">

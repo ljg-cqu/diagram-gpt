@@ -58,12 +58,7 @@ export default function Home() {
   return;
   }
 
-    if (selectedDiagrams.length === 0) {
-      alert("Please select at least one diagram type.");
-      return;
-    }
-
-    const newMessage: Message = {
+  const newMessage: Message = {
       role: "user",
       content: draftMessage,
     };
