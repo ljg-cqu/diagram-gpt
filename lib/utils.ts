@@ -16,10 +16,10 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 const systemPrompt = endent`
-  You are an assistant to help user build diagram with Mermaid.
-  You only need to return the output Mermaid code block.
-  Do not include any description, do not include the \`\`\`.
-  Code (no \`\`\`):
+  You are an assistant to help user build diagrams with Mermaid.
+  Return one or more Mermaid code blocks wrapped in \`\`\`mermaid ... \`\`\`.
+  For each diagram, include a title comment at the top like %% title: Meaningful Title %%.
+  Do not include descriptions or extra text outside the code blocks.
   `;
 
 export const OpenAIStream = async (
@@ -90,22 +90,53 @@ export const OpenAIStream = async (
   return stream;
 };
 
-export const parseCodeFromMessage = (message: string) => {
-  const regex = /```(?:mermaid)?\s*([\s\S]*?)```/;
-  const match = message.match(regex);
+export const parseCodeFromMessage = (message: string): { title: string; code: string }[] => {
+  // Split the message by ``` to find code blocks and their preceding content
+  const parts = message.split(/```/);
+  const results: { title: string; code: string }[] = [];
 
-  if (match) {
-    return match[1];
-  } else {
-    return message;
+  for (let i = 0; i < parts.length - 1; i += 2) {
+    const beforeCode = parts[i];
+    const codeBlock = parts[i + 1];
+
+    // Extract title from the content before the code block or at the start of code
+    let title = '';
+    let titleMatch = beforeCode.match(/%%\s*title:\s*(.+?)(?:\s*%%)?(?=\n|$)/i);
+    if (!titleMatch) {
+      titleMatch = codeBlock.match(/%%\s*title:\s*(.+?)(?:\s*%%)?(?=\n|$)/i);
+    }
+    if (titleMatch) {
+      title = titleMatch[1].trim();
+    }
+
+    // Extract the mermaid code (remove 'mermaid' prefix and title comments if present)
+    let code = codeBlock.replace(/^mermaid\s*/, '').trim();
+    code = code.replace(/^%%.*title:.*$/gm, '').trim();
+
+    if (code) {
+      results.push({ title, code });
+    }
   }
+
+  // If no structured blocks found, try the old way as fallback
+  if (results.length === 0) {
+    const regex = /```(?:mermaid)?\s*([\s\S]*?)```/g;
+    const matches = Array.from(message.matchAll(regex));
+    return matches.map(match => ({ title: '', code: match[1] }));
+  }
+
+  return results;
 };
 
-export const serializeCode = (code: string) => {
-  const state = {
-    code: parseCodeFromMessage(code),
-    mermaid: JSON.stringify(
-      {
+export const serializeCode = (code: string | string[]) => {
+  const codeStr = Array.isArray(code) ? code.join('\n\n---\n\n') : code;
+const parsed = parseCodeFromMessage(codeStr);
+const finalCode = Array.isArray(parsed) ? parsed[0] : parsed;
+
+const state = {
+code: finalCode,
+mermaid: JSON.stringify(
+    {
         theme: "default",
       },
       undefined,

@@ -11,7 +11,7 @@ import {
 import { serializeCode } from "@/lib/utils";
 
 interface Props {
-  code: string;
+  code: string | string[];
 }
 
 export const CodeBlock: React.FC<Props> = ({ code }) => {
@@ -26,7 +26,8 @@ export const CodeBlock: React.FC<Props> = ({ code }) => {
   };
 
   const handleCopyClick = () => {
-    copyToClipboard(code);
+    const textToCopy = Array.isArray(code) ? code.join('\n\n---\n\n') : code;
+    copyToClipboard(textToCopy);
     setLabel("Copied!");
 
     setTimeout(() => {
@@ -78,7 +79,7 @@ export const CodeBlock: React.FC<Props> = ({ code }) => {
           </div>
         </div>
         <div className="p-4 overflow-y-auto">
-          <code className="!whitespace-pre text-white">{code}</code>
+          <code className="!whitespace-pre text-white">{Array.isArray(code) ? code.join('\n\n---\n\n') : code}</code>
         </div>
       </div>
     </pre>

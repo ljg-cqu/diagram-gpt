@@ -111,7 +111,12 @@ export default function Mermaid({ chart }: { chart: string }) {
 
   return (
     <div className="w-full">
-      <div className="absolute right-0 px-4 py-2 text-xs font-sans flex items-center justify-center">
+      {mounted && (
+        <div ref={ref} className="mermaid flex items-center justify-center">
+          {chart}
+        </div>
+      )}
+      <div className="mt-2 px-4 py-2 text-xs font-sans flex items-center justify-center border-t">
         <Select value={theme} onValueChange={handleThemeChange}>
           <SelectTrigger className="w-[180px] mr-2 h-8">
             <Palette className="h-4 w-4" />
@@ -132,11 +137,6 @@ export default function Mermaid({ chart }: { chart: string }) {
           {label}
         </button>
       </div>
-      {mounted && (
-        <div ref={ref} className="mermaid flex items-center justify-center mt-12">
-          {chart}
-        </div>
-      )}
     </div>
   );
 }
