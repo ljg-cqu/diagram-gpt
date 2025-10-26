@@ -7,9 +7,9 @@ export const config = {
 
 export default async function chat(req: Request) {
   try {
-    const { messages, model, apiKey } = (await req.json()) as RequestBody;
+    const { messages, model, apiKey, baseUrl } = (await req.json()) as RequestBody;
 
-    const stream = await OpenAIStream(messages, model, apiKey);
+    const stream = await OpenAIStream(messages, model, apiKey, baseUrl);
 
     return new Response(stream);
   } catch (error) {

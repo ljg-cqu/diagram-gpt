@@ -1,7 +1,8 @@
 "use client";
 
 import { useAtom } from "jotai";
-import { type ChangeEvent } from "react";
+import { type ChangeEvent, useState, useEffect, useCallback } from "react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -13,23 +14,54 @@ import {
 
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { apiKeyAtom, modelAtom } from "@/lib/atom";
-import type { OpenAIModel } from "@/types/type";
+import { apiKeyAtom, modelAtom, baseUrlAtom } from "@/lib/atom";
+import type { Model } from "@/types/type";
 
 export const APIKeyInput = () => {
   const [apiKey, setApiKey] = useAtom(apiKeyAtom);
   const [model, setModel] = useAtom(modelAtom);
+  const [baseUrl, setBaseUrl] = useAtom(baseUrlAtom);
+  const [availableModels, setAvailableModels] = useState<Model[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) =>
     setApiKey(e.target.value);
 
-  const handleModelChange = (value: OpenAIModel) => {
+  const handleBaseUrlChange = (e: ChangeEvent<HTMLInputElement>) =>
+    setBaseUrl(e.target.value);
+
+  const handleModelChange = (value: Model) => {
     setModel(value);
   };
+
+  const fetchModels = useCallback(async () => {
+    if (!apiKey) return;
+    setLoading(true);
+    try {
+      const base = baseUrl ? (baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`) : "https://api.openai.com/v1";
+      const res = await fetch(`${base}/models`, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch models");
+      const data = await res.json();
+      setAvailableModels(data.data.map((m: any) => m.id).sort());
+    } catch (err) {
+      console.error(err);
+      setAvailableModels([]);
+    }
+    setLoading(false);
+  }, [apiKey, baseUrl]);
+
+  useEffect(() => {
+    fetchModels();
+  }, [apiKey, baseUrl, fetchModels]);
 
   const handleSave = () => {
     localStorage.setItem("apiKey", apiKey);
     localStorage.setItem("model", model);
+    localStorage.setItem("baseUrl", baseUrl);
   };
 
   return (
@@ -47,16 +79,40 @@ export const APIKeyInput = () => {
       </div>
 
       <div className="mb-2">
-        <Label htmlFor="model">OpenAI model</Label>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="model">Model</Label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchModels}
+            disabled={loading || !apiKey}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
         <Select value={model} onValueChange={handleModelChange}>
           <SelectTrigger className="w-[180px] mt-2">
             <SelectValue id="model" placeholder="Select model" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="gpt-4">gpt-4</SelectItem>
-            <SelectItem value="gpt-3.5-turbo">gpt-3.5-turbo</SelectItem>
+            {availableModels.map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
+      </div>
+      <div className="mb-2">
+        <Label htmlFor="base-url">Base URL (optional)</Label>
+        <Input
+          type="text"
+          id="base-url"
+          placeholder="https://api.openai.com/v1"
+          value={baseUrl}
+          onChange={handleBaseUrlChange}
+          className="mt-2"
+        />
       </div>
       <Button onClick={handleSave}>Save</Button>
     </div>

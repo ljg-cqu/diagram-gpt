@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import mermaid from "mermaid";
 import { Copy, Palette } from "lucide-react";
 
@@ -25,10 +25,15 @@ const Available_Themes: Theme[] = [
   "base",
 ];
 
-export function Mermaid({ chart }: MermaidProps) {
+export default function Mermaid({ chart }: { chart: string }) {
+  const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const [label, setLabel] = useState<string>("Copy SVG");
   const [theme, setTheme] = useState<Theme | "">("");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const theme = localStorage.getItem("theme");
@@ -65,7 +70,7 @@ export function Mermaid({ chart }: MermaidProps) {
     }
   };
 
-  async function drawChart(chart: string, theme: Theme | "") {
+  const drawChart = useCallback(async (chart: string, theme: Theme | "") => {
     const container = ref.current;
     if (chart !== "" && container && theme !== "") {
       container.removeAttribute("data-processed");
@@ -77,11 +82,11 @@ export function Mermaid({ chart }: MermaidProps) {
       });
       await mermaid.run();
     }
-  }
+  }, []);
 
   useEffect(() => {
     drawChart(chart, theme);
-  }, [chart]);
+  }, [chart, theme, drawChart]);
 
   const handleThemeChange = async (value: Theme) => {
     setTheme(value);
@@ -98,7 +103,9 @@ export function Mermaid({ chart }: MermaidProps) {
         logLevel: 5,
       });
       const { svg } = await mermaid.mermaidAPI.render("id", chart);
-      ref.current.innerHTML = svg;
+      if (ref.current) {
+        ref.current.innerHTML = svg;
+      }
     }
   };
 
@@ -125,9 +132,11 @@ export function Mermaid({ chart }: MermaidProps) {
           {label}
         </button>
       </div>
-      <div ref={ref} className="mermaid flex items-center justify-center mt-12">
-        {chart}
-      </div>
+      {mounted && (
+        <div ref={ref} className="mermaid flex items-center justify-center mt-12">
+          {chart}
+        </div>
+      )}
     </div>
   );
 }

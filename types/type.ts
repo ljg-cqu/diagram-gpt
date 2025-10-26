@@ -1,4 +1,4 @@
-export type OpenAIModel = "gpt-3.5-turbo" | "gpt-4";
+export type Model = string;
 
 export interface Message {
   role: "system" | "user" | "assistant";
@@ -7,8 +7,9 @@ export interface Message {
 
 export interface RequestBody {
   messages: Message[];
-  model: OpenAIModel;
+  model: Model;
   apiKey: string;
+  baseUrl?: string;
 }
 
 export type Theme = "default" | "neutral" | "dark" | "forest" | "base";

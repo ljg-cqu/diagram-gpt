@@ -3,18 +3,19 @@
 import { useEffect, useState } from "react";
 import { useAtom } from "jotai";
 
-import { apiKeyAtom, modelAtom } from "@/lib/atom";
-import { Mermaid } from "@/components/Mermaids";
+import { apiKeyAtom, modelAtom, baseUrlAtom } from "@/lib/atom";
+import Mermaid from "@/components/Mermaids";
 import { ChatInput } from "@/components/ChatInput";
 import { CodeBlock } from "@/components/CodeBlock";
 import { ChatMessage } from "@/components/ChatMessage";
 import type { Message, RequestBody } from "@/types/type";
 import { parseCodeFromMessage } from "@/lib/utils";
-import type { OpenAIModel } from "@/types/type";
+import type { Model } from "@/types/type";
 
 export default function Home() {
   const [apiKey, setApiKey] = useAtom(apiKeyAtom);
   const [model, setModel] = useAtom(modelAtom);
+  const [baseUrl, setBaseUrl] = useAtom(baseUrlAtom);
   const [draftMessage, setDraftMessage] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [draftOutputCode, setDraftOutputCode] = useState<string>("");
@@ -23,12 +24,16 @@ export default function Home() {
   useEffect(() => {
     const apiKey = localStorage.getItem("apiKey");
     const model = localStorage.getItem("model");
+      const baseUrl = localStorage.getItem("baseUrl");
 
     if (apiKey) {
       setApiKey(apiKey);
     }
     if (model) {
-      setModel(model as OpenAIModel);
+      setModel(model as Model);
+    }
+    if (baseUrl) {
+      setBaseUrl(baseUrl);
     }
   }, []);
 
@@ -54,7 +59,7 @@ export default function Home() {
     setDraftOutputCode("");
 
     const controller = new AbortController();
-    const body: RequestBody = { messages: newMessages, model, apiKey };
+    const body: RequestBody = { messages: newMessages, model, apiKey, ...(baseUrl && { baseUrl }) };
 
     const response = await fetch("/api/chat", {
       method: "POST",
@@ -96,9 +101,9 @@ export default function Home() {
       <div className="flex border md:border-r-0 flex-col justify-between w-full md:w-1/2">
         <div className="">
           <div className="">
-            {messages.map((message) => {
+            {messages.map((message, index) => {
               return (
-                <ChatMessage key={message.content} message={message.content} />
+                <ChatMessage key={index} message={message.content} />
               );
             })}
           </div>

@@ -1,9 +1,7 @@
 import { OpenAIStream } from "@/lib/utils";
 import { type RequestBody } from "@/types/type";
 
-export const config = {
-  runtime: "edge",
-};
+export const runtime = "edge";
 
 export async function POST(req: Request) {
   try {

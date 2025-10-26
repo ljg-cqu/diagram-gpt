@@ -25,10 +25,12 @@ const systemPrompt = endent`
 export const OpenAIStream = async (
   messages: Message[],
   model: string,
-  key: string
+  key: string,
+  baseUrl?: string
 ) => {
   const system = { role: "system", content: systemPrompt };
-  const res = await fetch(`https://api.openai.com/v1/chat/completions`, {
+  const base = baseUrl ? (baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`) : "https://api.openai.com/v1";
+  const res = await fetch(`${base}/chat/completions`, {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${key || process.env.OPENAI_API_KEY}`,
