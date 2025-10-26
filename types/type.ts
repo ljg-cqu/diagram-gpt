@@ -9,6 +9,7 @@ export interface RequestBody {
   messages: Message[];
   model: Model;
   apiKey: string;
+  diagramTypes: string[];
   baseUrl?: string;
 }
 

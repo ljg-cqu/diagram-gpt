@@ -26,9 +26,13 @@ export default async function chat(req: Request) {
       return new Response("Invalid model", { status: 400 });
     }
 
-    const { messages, model, apiKey, baseUrl } = body;
+    const { messages, model, apiKey, diagramTypes, baseUrl } = body;
 
-    const stream = await OpenAIStream(messages, model, apiKey, baseUrl);
+    if (!diagramTypes || diagramTypes.length === 0) {
+      return new Response("At least one diagram type must be selected", { status: 400 });
+    }
+
+    const stream = await OpenAIStream(messages, model, apiKey, diagramTypes, baseUrl);
 
     return new Response(stream);
   } catch (error) {

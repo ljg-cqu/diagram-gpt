@@ -8,6 +8,7 @@ import Mermaid from "@/components/Mermaids";
 import { ChatInput } from "@/components/ChatInput";
 import { CodeBlock } from "@/components/CodeBlock";
 import { ChatMessage } from "@/components/ChatMessage";
+import { DiagramSelector } from "@/components/DiagramSelector";
 import type { Message, RequestBody } from "@/types/type";
 import { parseCodeFromMessage } from "@/lib/utils";
 import type { Model } from "@/types/type";
@@ -23,6 +24,12 @@ export default function Home() {
   const [visibleDiagrams, setVisibleDiagrams] = useState<boolean[]>([]);
   const [diagramTitles, setDiagramTitles] = useState<string[]>([]);
   const [diagramDescriptions, setDiagramDescriptions] = useState<string[]>([]);
+  const [selectedDiagrams, setSelectedDiagrams] = useState<string[]>([
+    "architecture diagram",
+    "sequence diagram",
+    "data flow diagram",
+    "erd diagram"
+  ]);
 
   useEffect(() => {
     const apiKey = localStorage.getItem("apiKey");
@@ -41,13 +48,18 @@ export default function Home() {
   }, [setApiKey, setModel, setBaseUrl]);
 
   const handleSubmit = async () => {
-    if (!apiKey) {
-      alert("Please enter an API key.");
-      return;
-    }
+  if (!apiKey) {
+  alert("Please enter an API key.");
+  return;
+  }
 
-    if (!draftMessage) {
-      alert("Please enter a message.");
+  if (!draftMessage) {
+  alert("Please enter a message.");
+  return;
+  }
+
+    if (selectedDiagrams.length === 0) {
+      alert("Please select at least one diagram type.");
       return;
     }
 
@@ -62,9 +74,9 @@ export default function Home() {
     setDraftOutputCode("");
 
     const controller = new AbortController();
-    const body: RequestBody = { messages: newMessages, model, apiKey, ...(baseUrl && { baseUrl }) };
+    const body: RequestBody = { messages: newMessages, model, apiKey, diagramTypes: selectedDiagrams, ...(baseUrl && { baseUrl }) };
 
-    const response = await fetch("/api/chat", {
+    const response = await fetch("/api/openai", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -161,7 +173,11 @@ export default function Home() {
           </div>
         </div>
         <div className="w-full p-2">
-          <ChatInput
+        <DiagramSelector
+        selectedDiagrams={selectedDiagrams}
+        onSelectionChange={setSelectedDiagrams}
+        />
+        <ChatInput
             messageContent={draftMessage}
             onChange={setDraftMessage}
             onSubmit={handleSubmit}
