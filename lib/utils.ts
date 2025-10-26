@@ -17,9 +17,18 @@ export function cn(...inputs: ClassValue[]) {
 
 const systemPrompt = endent`
   You are an assistant to help user build diagrams with Mermaid.
-  Return one or more Mermaid code blocks wrapped in \`\`\`mermaid ... \`\`\`.
-  For each diagram, include a title comment at the top like %% title: Meaningful Title %%.
-  Do not include descriptions or extra text outside the code blocks.
+  For each diagram, provide the response in this exact format:
+  %% title: Meaningful Title %%
+  Description: Brief description of the diagram (1-2 sentences).
+
+  \`\`\`mermaid
+  [Mermaid diagram code here]
+  \`\`\`
+
+  IMPORTANT:
+  - Put the title and description BEFORE the mermaid code block
+  - Do NOT put any text inside the \`\`\`mermaid code block except valid Mermaid syntax
+  - The description should be on its own line after "Description:"
   `;
 
 export const OpenAIStream = async (
@@ -90,10 +99,10 @@ export const OpenAIStream = async (
   return stream;
 };
 
-export const parseCodeFromMessage = (message: string): { title: string; code: string }[] => {
+export const parseCodeFromMessage = (message: string): { title: string; description: string; code: string }[] => {
   // Split the message by ``` to find code blocks and their preceding content
   const parts = message.split(/```/);
-  const results: { title: string; code: string }[] = [];
+  const results: { title: string; description: string; code: string }[] = [];
 
   for (let i = 0; i < parts.length - 1; i += 2) {
     const beforeCode = parts[i];
@@ -109,12 +118,37 @@ export const parseCodeFromMessage = (message: string): { title: string; code: st
       title = titleMatch[1].trim();
     }
 
-    // Extract the mermaid code (remove 'mermaid' prefix and title comments if present)
+    // Extract description: look for "Description:" in beforeCode or at the start of codeBlock
+    let description = '';
+    let descStart = beforeCode.indexOf('Description:');
+    let descText = '';
+
+    if (descStart !== -1) {
+      descText = beforeCode.substring(descStart + 'Description:'.length).trim();
+    } else {
+      // Check if description is at the start of the code block
+      const codeDescStart = codeBlock.indexOf('Description:');
+      if (codeDescStart !== -1 && codeDescStart < 100) { // Only if it's near the beginning
+        descText = codeBlock.substring(codeDescStart + 'Description:'.length).trim();
+      }
+    }
+
+    if (descText) {
+      const endIndex = descText.indexOf('\n\n');
+      if (endIndex !== -1) {
+        description = descText.substring(0, endIndex).trim();
+      } else {
+        description = descText.split('\n')[0].trim(); // Take only the first line
+      }
+    }
+
+    // Extract the mermaid code (remove 'mermaid' prefix, title comments, and description if present)
     let code = codeBlock.replace(/^mermaid\s*/, '').trim();
     code = code.replace(/^%%.*title:.*$/gm, '').trim();
+    code = code.replace(/^Description:.*$/gm, '').trim();
 
     if (code) {
-      results.push({ title, code });
+      results.push({ title, description, code });
     }
   }
 
@@ -122,7 +156,7 @@ export const parseCodeFromMessage = (message: string): { title: string; code: st
   if (results.length === 0) {
     const regex = /```(?:mermaid)?\s*([\s\S]*?)```/g;
     const matches = Array.from(message.matchAll(regex));
-    return matches.map(match => ({ title: '', code: match[1] }));
+    return matches.map(match => ({ title: '', description: '', code: match[1] }));
   }
 
   return results;
@@ -130,13 +164,13 @@ export const parseCodeFromMessage = (message: string): { title: string; code: st
 
 export const serializeCode = (code: string | string[]) => {
   const codeStr = Array.isArray(code) ? code.join('\n\n---\n\n') : code;
-const parsed = parseCodeFromMessage(codeStr);
-const finalCode = Array.isArray(parsed) ? parsed[0] : parsed;
+  const parsed = parseCodeFromMessage(codeStr);
+  const finalCode = Array.isArray(parsed) ? parsed[0] : parsed;
 
-const state = {
-code: finalCode,
-mermaid: JSON.stringify(
-    {
+  const state = {
+    code: finalCode,
+    mermaid: JSON.stringify(
+      {
         theme: "default",
       },
       undefined,

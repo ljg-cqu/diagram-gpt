@@ -6,14 +6,33 @@ export const config = {
 };
 
 export default async function chat(req: Request) {
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
   try {
-    const { messages, model, apiKey, baseUrl } = (await req.json()) as RequestBody;
+    const body = await req.json() as RequestBody;
+
+    // Basic validation
+    if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
+      return new Response("Invalid messages", { status: 400 });
+    }
+
+    if (!body.apiKey || typeof body.apiKey !== "string") {
+      return new Response("Invalid API key", { status: 400 });
+    }
+
+    if (!body.model || typeof body.model !== "string") {
+      return new Response("Invalid model", { status: 400 });
+    }
+
+    const { messages, model, apiKey, baseUrl } = body;
 
     const stream = await OpenAIStream(messages, model, apiKey, baseUrl);
 
     return new Response(stream);
   } catch (error) {
-    console.error(error);
-    return new Response("Error", { status: 500 });
+    console.error("API Error:", error);
+    return new Response("Internal server error", { status: 500 });
   }
 }

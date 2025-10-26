@@ -22,6 +22,7 @@ export default function Home() {
   const [outputCode, setOutputCode] = useState<string[]>([]);
   const [visibleDiagrams, setVisibleDiagrams] = useState<boolean[]>([]);
   const [diagramTitles, setDiagramTitles] = useState<string[]>([]);
+  const [diagramDescriptions, setDiagramDescriptions] = useState<string[]>([]);
 
   useEffect(() => {
     const apiKey = localStorage.getItem("apiKey");
@@ -97,7 +98,9 @@ export default function Home() {
     }
     const parsed = parseCodeFromMessage(code);
     const codes = parsed.map(p => p.code);
+    const descriptions = parsed.map(p => p.description);
     setOutputCode(codes);
+    setDiagramDescriptions(descriptions);
     setVisibleDiagrams(new Array(codes.length).fill(true));
 
     // Extract titles: use AI-provided titles or fall back to type detection
@@ -159,7 +162,7 @@ export default function Home() {
         </div>
         <div className="w-full p-2">
           <ChatInput
-            messageCotent={draftMessage}
+            messageContent={draftMessage}
             onChange={setDraftMessage}
             onSubmit={handleSubmit}
           />
@@ -170,18 +173,21 @@ export default function Home() {
 
         <div className="flex-1 border relative overflow-y-auto">
           {outputCode.map((code, index) => (
-        <div key={index} className="mb-4 border rounded p-2">
-        <div className="flex items-center justify-between mb-2">
-        <h3 className="text-lg font-semibold">{diagramTitles[index]}</h3>
-              <button
-                  onClick={() => toggleDiagramVisibility(index)}
-                  className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300"
-                >
-                  {visibleDiagrams[index] ? 'Hide' : 'Show'}
-                </button>
-              </div>
-              {visibleDiagrams[index] && <Mermaid chart={code} />}
-            </div>
+          <div key={index} className="mb-4 border rounded p-2">
+          <div className="flex items-center justify-between mb-2">
+          <h3 className="text-lg font-semibold">{diagramTitles[index]}</h3>
+          <button
+          onClick={() => toggleDiagramVisibility(index)}
+          className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300"
+          >
+          {visibleDiagrams[index] ? 'Hide' : 'Show'}
+          </button>
+          </div>
+          {diagramDescriptions[index] && (
+            <p className="text-sm text-gray-700 mb-2">{diagramDescriptions[index]}</p>
+          )}
+          {visibleDiagrams[index] && <Mermaid chart={code} />}
+          </div>
           ))}
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import mermaid from "mermaid";
 import { Copy, Palette } from "lucide-react";
 
@@ -45,16 +45,21 @@ export default function Mermaid({ chart }: { chart: string }) {
     }
   }, []);
 
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = async (text: string) => {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (err) {
+    // Fallback for older browsers
     const el = document.createElement("textarea");
     el.value = text;
-    document.body.appendChild(el);
-    el.select();
-    document.execCommand("copy");
-    document.body.removeChild(el);
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
   };
 
-  const handleCopyClick = () => {
+  const handleCopyClick = async () => {
     const container = ref.current;
     if (!container) return;
 
@@ -75,10 +80,10 @@ export default function Mermaid({ chart }: { chart: string }) {
     if (chart !== "" && container && theme !== "") {
       container.removeAttribute("data-processed");
       mermaid.mermaidAPI.initialize({
-        startOnLoad: false,
-        securityLevel: "loose",
-        theme,
-        logLevel: 5,
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme,
+      logLevel: 5,
       });
       await mermaid.run();
     }
@@ -97,10 +102,10 @@ export default function Mermaid({ chart }: { chart: string }) {
     if (container) {
       container.removeAttribute("data-processed");
       mermaid.mermaidAPI.initialize({
-        startOnLoad: false,
-        securityLevel: "loose",
-        theme: value,
-        logLevel: 5,
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme: value,
+      logLevel: 5,
       });
       const { svg } = await mermaid.mermaidAPI.render("id", chart);
       if (ref.current) {

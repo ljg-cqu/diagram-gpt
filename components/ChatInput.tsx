@@ -3,13 +3,13 @@ import { Button } from "./ui/button";
 import { Send } from "lucide-react";
 import { KeyboardEvent } from "react";
 interface Props {
-  messageCotent: string;
-  onChange: (messageCotent: string) => void;
+  messageContent: string;
+  onChange: (messageContent: string) => void;
   onSubmit: () => void;
 }
 
 export const ChatInput: React.FC<Props> = ({
-  messageCotent,
+  messageContent,
   onChange,
   onSubmit,
 }) => {
@@ -22,10 +22,10 @@ export const ChatInput: React.FC<Props> = ({
   return (
     <div className="flex flex-col w-full flex-grow relative border border-black/10 rounded-md shadow-[0_0_10px_rgba(0,0,0,0.10)]">
       <Textarea
-        placeholder="Describe the diagram in nature language."
-        value={messageCotent}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
+      placeholder="Describe the diagram in natural language."
+      value={messageContent}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={handleKeyDown}
       />
       <Button
         onClick={onSubmit}
