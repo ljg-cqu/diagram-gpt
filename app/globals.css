@@ -5,3 +5,13 @@
   --container-padding: 1.5rem;
   --breakpoint-2xl: 1360px;
 }
+
+/* Dynamic bottom padding used to avoid the fixed bottom input covering content.
+   Updated on the client via `document.documentElement.style.setProperty('--bottom-bar-height', '<px>')` */
+:root {
+  --bottom-bar-height: 8rem;
+}
+
+body {
+  padding-bottom: var(--bottom-bar-height, 8rem);
+}

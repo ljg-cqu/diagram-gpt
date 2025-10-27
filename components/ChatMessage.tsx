@@ -1,10 +1,11 @@
 import { User } from "lucide-react";
+import React from "react";
 
 interface ChatMessageProps {
   message: string;
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export const ChatMessage: React.FC<ChatMessageProps> = React.memo(function ChatMessage({ message }) {
   return (
     <div className="group w-full text-gray-800 border-b border-black/10">
       <div className="text-base gap-4 md:gap-6 md:max-w-2xl lg:max-w-xl xl:max-w-3xl p-1 md:py-2 flex lg:px-0 m-auto">
@@ -27,4 +28,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
       </div>
     </div>
   );
-}
+});
+
+ChatMessage.displayName = 'ChatMessage';

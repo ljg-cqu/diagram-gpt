@@ -5,8 +5,6 @@ import {
   type EventSourceMessage,
 } from "eventsource-parser";
 import endent from "endent";
-import { deflate } from "pako";
-import { fromUint8Array } from "js-base64";
 
 import { type Message } from "@/types/type";
 
@@ -16,7 +14,7 @@ export function cn(...inputs: ClassValue[]) {
 
 const systemPrompt = (diagramTypes: string[], userMessage: string) => {
   const typesText = diagramTypes.length > 0 ? diagramTypes.join(', ') : 'various diagram types';
-if (diagramTypes.length === 0) {
+  if (diagramTypes.length === 0) {
     const escapedMessage = userMessage.replace(/"/g, '\\"').replace(/\\/g, '\\\\').replace(/\n/g, '\\n');
     return endent`
 You are an assistant to help user build diagrams with Mermaid.
@@ -32,10 +30,49 @@ Description: Brief description of the diagram (1-2 sentences).
 [Mermaid diagram code here]
 \`\`\`
 
-IMPORTANT:
+CRITICAL SYNTAX RULES:
 - Put the title and description BEFORE the mermaid code block
 - Do NOT put any text inside the \`\`\`mermaid code block except valid Mermaid syntax
 - The description should be on its own line after "Description:"
+
+FLOWCHART/GRAPH RULES:
+- CRITICAL: NEVER use parentheses () in node labels - they break the parser
+- Use simple, alphanumeric labels with underscores or spaces only, e.g., A[Rust_Compiler] not A[Rust Compiler (rustc)]
+- If you need to indicate something in parentheses, use dashes or underscores instead: A[Rust_Compiler_rustc]
+- Avoid hyphens at start of label text, and special chars in node text unless wrapped in quotes
+- For labeled edges: use "A -->|label| B" or "A -->|description| B" format only
+- Do NOT use "A --> B : label" format in flowcharts
+- Example good syntax: A[Source_Code] --> B[Rust_Compiler] --> C[Binary]
+
+ER DIAGRAM RULES:
+- ER diagrams do NOT support "-->" arrows with labels
+- Use ONLY these relationship operators: ||--||, ||--o|, o|--||, o|--o|, ||--|, |--||
+- CRITICAL: First define ALL entities with their attributes
+- ATTRIBUTE FORMAT: Each attribute MUST be on a separate line, NO COMMAS between attributes
+- Format: ENTITY { type attr1 \n type attr2 } with each attribute on its own line inside braces
+- THEN define all relationships AFTER all entity definitions (relationship definitions come at the end)
+- ALL entities referenced in relationships must be explicitly defined first with attributes
+- Do NOT mix flowchart arrows with ER syntax
+- Example structure:
+  erDiagram
+      USER {
+          string name
+          int age
+      }
+      ORDER {
+          int id
+          string date
+      }
+      USER ||--o| ORDER : places
+
+CLASS DIAGRAM RULES:
+- Use proper class syntax with attributes and methods
+- Relationships: <|--, *--, o--, +-- are valid
+- Do NOT use flowchart-style arrows
+
+STATE DIAGRAM RULES:
+- Use state transitions with "-->" or proper state syntax
+- Do NOT mix flowchart and state diagram syntax
 `;
   } else {
     return endent`
@@ -54,21 +91,60 @@ Description: Brief description of the diagram (1-2 sentences).
 [Mermaid diagram code here]
 \`\`\`
 
-IMPORTANT:
+CRITICAL SYNTAX RULES:
 - Put the title and description BEFORE the mermaid code block
 - Do NOT put any text inside the \`\`\`mermaid code block except valid Mermaid syntax
 - The description should be on its own line after "Description:"
+
+FLOWCHART/GRAPH RULES:
+- CRITICAL: NEVER use parentheses () in node labels - they break the parser
+- Use simple, alphanumeric labels with underscores or spaces only, e.g., A[Rust_Compiler] not A[Rust Compiler (rustc)]
+- If you need to indicate something in parentheses, use dashes or underscores instead: A[Rust_Compiler_rustc]
+- Avoid hyphens at start of label text, and special chars in node text unless wrapped in quotes
+- For labeled edges: use "A -->|label| B" or "A -->|description| B" format only
+- Do NOT use "A --> B : label" format in flowcharts
+- Example good syntax: A[Source_Code] --> B[Rust_Compiler] --> C[Binary]
+
+ER DIAGRAM RULES:
+- ER diagrams do NOT support "-->" arrows with labels
+- Use ONLY these relationship operators: ||--||, ||--o|, o|--||, o|--o|, ||--|, |--||
+- CRITICAL: First define ALL entities with their attributes
+- ATTRIBUTE FORMAT: Each attribute MUST be on a separate line, NO COMMAS between attributes
+- Format: ENTITY { type attr1 \n type attr2 } with each attribute on its own line inside braces
+- THEN define all relationships AFTER all entity definitions (relationship definitions come at the end)
+- ALL entities referenced in relationships must be explicitly defined first with attributes
+- Do NOT mix flowchart arrows with ER syntax
+- Example structure:
+  erDiagram
+      USER {
+          string name
+          int age
+      }
+      ORDER {
+          int id
+          string date
+      }
+      USER ||--o| ORDER : places
+
+CLASS DIAGRAM RULES:
+- Use proper class syntax with attributes and methods
+- Relationships: <|--, *--, o--, +-- are valid
+- Do NOT use flowchart-style arrows
+
+STATE DIAGRAM RULES:
+- Use state transitions with "-->" or proper state syntax
+- Do NOT mix flowchart and state diagram syntax
 `;
   }
 };
 
 export const OpenAIStream = async (
-messages: Message[],
-model: string,
-key: string,
-diagramTypes: string[],
-baseUrl?: string
-) => {
+  messages: Message[],
+  model: string,
+  key: string,
+  diagramTypes: string[],
+  baseUrl?: string
+): Promise<ReadableStream<Uint8Array>> => {
 const userMessage = messages[messages.length - 1]?.content || '';
   const system = { role: "system", content: systemPrompt(diagramTypes, userMessage) };
   const base = baseUrl ? (baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`) : "https://api.openai.com/v1";
@@ -112,15 +188,24 @@ const userMessage = messages[messages.length - 1]?.content || '';
 
           try {
             const json = JSON.parse(data);
-            const text = json.choices[0].delta.content;
-            const queue = encoder.encode(text);
-            controller.enqueue(queue);
+            // Guard against unexpected shapes in the incremental stream
+            const delta = json?.choices?.[0]?.delta;
+            const text = delta?.content;
+            if (typeof text === "string" && text.length > 0) {
+              const queue = encoder.encode(text);
+              controller.enqueue(queue);
+            }
+            // if text is undefined (e.g., role tokens), ignore silently
           } catch (e) {
-            controller.error(e);
+            // For streaming, don't necessarily fatal the entire stream on one bad chunk
+            try {
+              controller.error(e as Error);
+            } catch {}
           }
         },
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for await (const chunk of res.body as any) {
         parser.feed(decoder.decode(chunk));
       }
@@ -132,6 +217,7 @@ const userMessage = messages[messages.length - 1]?.content || '';
 
 export const parseCodeFromMessage = (message: string): { title: string; description: string; code: string }[] => {
   // Split the message by ``` to find code blocks and their preceding content
+  // Use a split that preserves language fences; message may contain ```mermaid
   const parts = message.split(/```/);
   const results: { title: string; description: string; code: string }[] = [];
 
@@ -151,7 +237,7 @@ export const parseCodeFromMessage = (message: string): { title: string; descript
 
     // Extract description: look for "Description:" in beforeCode or at the start of codeBlock
     let description = '';
-    let descStart = beforeCode.indexOf('Description:');
+    const descStart = beforeCode.indexOf('Description:');
     let descText = '';
 
     if (descStart !== -1) {
@@ -173,10 +259,12 @@ export const parseCodeFromMessage = (message: string): { title: string; descript
       }
     }
 
-    // Extract the mermaid code (remove 'mermaid' prefix, title comments, and description if present)
-    let code = codeBlock.replace(/^mermaid\s*/, '').trim();
-    code = code.replace(/^%%.*title:.*$/gm, '').trim();
-    code = code.replace(/^Description:.*$/gm, '').trim();
+  // Extract the mermaid code (remove 'mermaid' prefix, optional leading newline, title comments, and description if present)
+  let code = codeBlock.replace(/^mermaid\s*\n?/i, '').trim();
+  // Remove title comment lines like %% title: ... %%
+  code = code.replace(/^%%.*title:.*$/gim, '').trim();
+  // Remove description lines that may appear inside the code block
+  code = code.replace(/^Description:.*$/gim, '').trim();
 
     if (code) {
       results.push({ title, description, code });
@@ -187,30 +275,10 @@ export const parseCodeFromMessage = (message: string): { title: string; descript
   if (results.length === 0) {
     const regex = /```(?:mermaid)?\s*([\s\S]*?)```/g;
     const matches = Array.from(message.matchAll(regex));
-    return matches.map(match => ({ title: '', description: '', code: match[1] }));
+    return matches.map(match => ({ title: '', description: '', code: (match[1] || '').trim() }));
   }
 
   return results;
 };
 
-export const serializeCode = (code: string | string[]) => {
-  const codeStr = Array.isArray(code) ? code.join('\n\n---\n\n') : code;
-  const parsed = parseCodeFromMessage(codeStr);
-  const finalCode = Array.isArray(parsed) ? parsed[0] : parsed;
 
-  const state = {
-    code: finalCode,
-    mermaid: JSON.stringify(
-      {
-        theme: "default",
-      },
-      undefined,
-      2
-    ),
-    autoSync: true,
-    updateDiagram: true,
-  };
-  const data = new TextEncoder().encode(JSON.stringify(state));
-  const compressed = deflate(data, { level: 9 });
-  return fromUint8Array(compressed, true);
-};

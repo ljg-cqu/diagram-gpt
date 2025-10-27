@@ -36,10 +36,9 @@ const defaultDiagrams = [
   "treemap"
 ];
 
-export const DiagramSelector: React.FC<DiagramSelectorProps> = ({
-  selectedDiagrams,
-  onSelectionChange,
-}) => {
+import React from "react";
+
+export const DiagramSelector: React.FC<DiagramSelectorProps> = React.memo(({ selectedDiagrams, onSelectionChange, }) => {
   const [customDiagram, setCustomDiagram] = useState("");
 
   const toggleDiagram = (diagram: string) => {
@@ -138,4 +137,6 @@ export const DiagramSelector: React.FC<DiagramSelectorProps> = ({
       </div>
     </div>
   );
-};
+});
+
+DiagramSelector.displayName = 'DiagramSelector';

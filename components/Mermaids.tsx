@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Copy, Palette } from "lucide-react";
 
 import {
@@ -12,10 +12,6 @@ import {
 } from "@/components/ui/select";
 import type { Theme } from "@/types/type";
 
-interface MermaidProps {
-  chart: string;
-}
-
 const Available_Themes: Theme[] = [
   "default",
   "neutral",
@@ -24,11 +20,12 @@ const Available_Themes: Theme[] = [
   "base",
 ];
 
-export default function Mermaid({ chart }: { chart: string }) {
+function Mermaid({ chart }: { chart: string }) {
   const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const [label, setLabel] = useState<string>("Copy SVG");
   const [theme, setTheme] = useState<Theme | "">("");
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -47,7 +44,7 @@ export default function Mermaid({ chart }: { chart: string }) {
   const copyToClipboard = async (text: string) => {
   try {
     await navigator.clipboard.writeText(text);
-  } catch (err) {
+  } catch {
     // Fallback for older browsers
     const el = document.createElement("textarea");
     el.value = text;
@@ -74,70 +71,101 @@ export default function Mermaid({ chart }: { chart: string }) {
     }
   };
 
-  const drawChart = useCallback(async (chart: string, theme: Theme | "") => {
-    const container = ref.current;
-    if (chart !== "" && container && theme !== "") {
+  // Keep a reference to the imported mermaid module so we import once per page
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mermaidRef = useRef<any | null>(null);
+
+  // Render with a small debounce to avoid re-rendering on rapid prop updates
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const render = async () => {
+      const container = ref.current;
+      if (chart === "" || !container || theme === "") return;
+      setRenderError(null);
       container.removeAttribute("data-processed");
 
-      // Dynamically import mermaid on the client to avoid server-side bundling
-      const mmod = await import("mermaid");
-      // support both default and named exports
-      const mermaid = (mmod && (mmod.default ?? mmod)) as any;
-
-      // Mermaid v11 API: use initialize() directly
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: "strict",
-        theme,
-      });
-
-      // Try to render directly into the container
       try {
+        // import mermaid once and cache it
+        if (!mermaidRef.current) {
+          const mmod = await import("mermaid");
+          mermaidRef.current = mmod.default ?? mmod;
+        }
+        const mermaid = mermaidRef.current;
+
+        mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme });
+
+        if (typeof mermaid.parse === "function") {
+          try {
+            mermaid.parse(chart);
+          } catch (parseErr: unknown) {
+            console.error("Mermaid parse error:", parseErr, "Chart:", chart);
+            setRenderError(
+              `Syntax error: ${parseErr && parseErr instanceof Error ? parseErr.message : String(parseErr)}`
+            );
+            return;
+          }
+        }
+
         const id = `mermaid-${Date.now()}`;
         const { svg } = await mermaid.render(id, chart);
-        container.innerHTML = svg;
-      } catch (err) {
+        if (!cancelled) container.innerHTML = svg;
+      } catch {
         // Fallback: insert the raw chart and let mermaid.run process it
         container.innerHTML = `<div class="mermaid">${chart}</div>`;
         try {
-          await mermaid.run({ nodes: [container] });
-        } catch (e) {
-          // swallow: rendering failed
-          console.error("Mermaid render error", e);
+          if (!mermaidRef.current) {
+            const mmod = await import("mermaid");
+            mermaidRef.current = mmod.default ?? mmod;
+          }
+          await mermaidRef.current.run({ nodes: [container] });
+        } catch (e: unknown) {
+          console.error(
+            "Mermaid render error:",
+            e,
+            e instanceof Error ? e.message : undefined,
+            e instanceof Error ? e.stack : undefined,
+            "Chart:",
+            chart
+          );
+          if (!cancelled) setRenderError("Failed to render diagram. The syntax may be invalid or uses unsupported features.");
         }
       }
-    }
-  }, []);
+    };
 
-  useEffect(() => {
-    drawChart(chart, theme);
-  }, [chart, theme, drawChart]);
+    // debounce 200ms
+    timer = setTimeout(() => {
+      void render();
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [chart, theme]);
 
   const handleThemeChange = async (value: Theme) => {
     setTheme(value);
     localStorage.setItem("theme", value);
 
-    // rerender chart using client-only mermaid
+    // rerender chart using already-imported mermaid module (if available)
     const container = ref.current;
     if (container && chart) {
       container.removeAttribute("data-processed");
       try {
-        const mmod = await import("mermaid");
-        const mermaid = (mmod && (mmod.default ?? mmod)) as any;
-        
-        // Mermaid v11 API
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: "strict",
-          theme: value,
-        });
-        
+        if (!mermaidRef.current) {
+          const mmod = await import("mermaid");
+          mermaidRef.current = mmod.default ?? mmod;
+        }
+        const mermaid = mermaidRef.current;
+        mermaid.initialize({ startOnLoad: false, securityLevel: "loose", theme: value });
         const { svg } = await mermaid.render(`mermaid-${Date.now()}`, chart);
         if (ref.current) {
           ref.current.innerHTML = svg;
         }
       } catch (e) {
-        // fallback: let drawChart handle failures on next effect
+        // fallback: let the main effect handle failures on next render
         console.error("Mermaid theme render error", e);
       }
     }
@@ -145,7 +173,12 @@ export default function Mermaid({ chart }: { chart: string }) {
 
   return (
     <div className="w-full">
-      {mounted && (
+      {renderError ? (
+        <div className="p-4 text-red-500 border rounded-md">
+          {renderError}
+          <pre className="mt-2 text-xs bg-gray-100 p-2 rounded">{chart}</pre>
+        </div>
+      ) : mounted && (
         <div ref={ref} className="mermaid flex items-center justify-center">
           {chart}
         </div>
@@ -174,3 +207,5 @@ export default function Mermaid({ chart }: { chart: string }) {
     </div>
   );
 }
+
+export default React.memo(Mermaid);

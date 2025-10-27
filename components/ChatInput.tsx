@@ -1,18 +1,14 @@
+import React, { KeyboardEvent } from "react";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
 import { Send } from "lucide-react";
-import { KeyboardEvent } from "react";
 interface Props {
   messageContent: string;
   onChange: (messageContent: string) => void;
   onSubmit: () => void;
 }
 
-export const ChatInput: React.FC<Props> = ({
-  messageContent,
-  onChange,
-  onSubmit,
-}) => {
+const ChatInputComponent: React.FC<Props> = ({ messageContent, onChange, onSubmit }) => {
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key == "Enter" && e.shiftKey == false) {
       e.preventDefault();
@@ -22,10 +18,10 @@ export const ChatInput: React.FC<Props> = ({
   return (
     <div className="flex flex-col w-full flex-grow relative border border-black/10 rounded-md shadow-[0_0_10px_rgba(0,0,0,0.10)]">
       <Textarea
-      placeholder="Describe the diagram in natural language."
-      value={messageContent}
-      onChange={(e) => onChange(e.target.value)}
-      onKeyDown={handleKeyDown}
+        placeholder="Describe the diagram in natural language."
+        value={messageContent}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
       />
       <Button
         onClick={onSubmit}
@@ -37,3 +33,6 @@ export const ChatInput: React.FC<Props> = ({
     </div>
   );
 };
+
+export const ChatInput = React.memo(ChatInputComponent);
+ChatInput.displayName = "ChatInput";

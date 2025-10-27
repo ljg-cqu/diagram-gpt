@@ -1,3 +1,42 @@
 {
-  "extends": "next/core-web-vitals"
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": true
+    }
+  },
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "node": true
+  },
+  "plugins": ["react-hooks", "@typescript-eslint"],
+  "overrides": [
+    {
+      "files": ["**/*.ts", "**/*.tsx"],
+      "parser": "@typescript-eslint/parser",
+      "parserOptions": {
+        "ecmaVersion": 2021,
+        "sourceType": "module",
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      },
+      "extends": ["plugin:@typescript-eslint/recommended"],
+      "rules": {
+        "@typescript-eslint/no-unused-expressions": "warn",
+        "react-hooks/exhaustive-deps": "warn"
+      }
+    },
+    {
+      "files": ["**/*.js", "**/*.jsx"],
+      "parser": "espree"
+    }
+  ],
+  "rules": {
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "react/react-in-jsx-scope": "off"
+  }
 }

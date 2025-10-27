@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { useState } from "react";
+import React, { useState } from "react";
 import { Copy, HelpCircle, Edit } from "lucide-react";
 
 import {
@@ -8,14 +8,54 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 
-import { serializeCode } from "@/lib/utils";
+// We compute the mermaid.live compressed payload on the client only via dynamic import
 
 interface Props {
   code: string | string[];
 }
 
-export const CodeBlock: React.FC<Props> = ({ code }) => {
+export const CodeBlock = React.memo(function CodeBlock({ code }: Props) {
   const [label, setLabel] = useState<string>("Copy code");
+  const [pakoHash, setPakoHash] = useState<string | null>(null);
+
+  // Compute the mermaid.live pako: payload on the client lazily.
+  React.useEffect(() => {
+    let cancelled = false;
+    const compute = async () => {
+      try {
+        const codeStr = Array.isArray(code) ? code.join('\n\n---\n\n') : code;
+        // Reuse parseCodeFromMessage to extract the pure mermaid code
+        const { parseCodeFromMessage } = await import("@/lib/utils");
+        const parsed = parseCodeFromMessage(codeStr);
+        const finalCodeStr = parsed && parsed.length > 0 ? parsed[0].code : codeStr;
+
+        const state = {
+          code: finalCodeStr,
+          mermaid: JSON.stringify({ theme: "default" }, undefined, 2),
+          autoSync: true,
+          updateDiagram: true,
+        };
+
+        const { deflate } = await import("pako");
+        const { fromUint8Array } = await import("js-base64");
+
+        const data = new TextEncoder().encode(JSON.stringify(state));
+        const compressed = deflate(data, { level: 9 });
+        const encoded = fromUint8Array(compressed, true);
+        if (!cancelled) setPakoHash(encoded);
+      } catch (e) {
+        // Don't block rendering if this fails; just don't show the edit link
+        console.error("Failed to compute mermaid.live payload:", e);
+      }
+    };
+
+    // Only run on the client; effect already guarantees that.
+    void compute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [code]);
   const copyToClipboard = (text: string) => {
     const el = document.createElement("textarea");
     el.value = text;
@@ -65,10 +105,11 @@ export const CodeBlock: React.FC<Props> = ({ code }) => {
           </div>
           <div className="flex">
             <Link
-              href={`https://mermaid.live/edit#pako:${serializeCode(code)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex ml-auto gap-1 mr-4"
+              href={pakoHash ? `https://mermaid.live/edit#pako:${pakoHash}` : '#'}
+              target={pakoHash ? '_blank' : undefined}
+              rel={pakoHash ? 'noreferrer' : undefined}
+              className={`flex ml-auto gap-1 mr-4 ${!pakoHash ? 'opacity-50 pointer-events-none' : ''}`}
+              aria-disabled={!pakoHash}
             >
               <Edit className="h-4 w-4" /> Edit
             </Link>
@@ -84,4 +125,6 @@ export const CodeBlock: React.FC<Props> = ({ code }) => {
       </div>
     </pre>
   );
-};
+});
+
+CodeBlock.displayName = 'CodeBlock';

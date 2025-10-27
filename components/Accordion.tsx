@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, createContext, useContext, useId } from "react";
 
-type AccordionHandle = {
+export type AccordionHandle = {
   openAll: () => void;
   closeAll: () => void;
 };

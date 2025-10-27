@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { Plus } from "lucide-react";
 import { useAtom } from "jotai";
 
 import { apiKeyAtom, modelAtom, baseUrlAtom } from "@/lib/atom";
 import Mermaid from "@/components/Mermaids";
+import Accordion, { AccordionItem } from "@/components/Accordion";
+import type { AccordionHandle } from "@/components/Accordion";
 import { ChatInput } from "@/components/ChatInput";
 import { CodeBlock } from "@/components/CodeBlock";
 import { ChatMessage } from "@/components/ChatMessage";
@@ -24,12 +27,17 @@ export default function Home() {
   const [visibleDiagrams, setVisibleDiagrams] = useState<boolean[]>([]);
   const [diagramTitles, setDiagramTitles] = useState<string[]>([]);
   const [diagramDescriptions, setDiagramDescriptions] = useState<string[]>([]);
+  const [diagramOrigins, setDiagramOrigins] = useState<number[]>([]);
   const [selectedDiagrams, setSelectedDiagrams] = useState<string[]>([
     "architecture diagram",
     "sequence diagram",
     "data flow diagram",
     "erd diagram"
   ]);
+  const [showSelector, setShowSelector] = useState<boolean>(false);
+  const diagramsAccordionRef = useRef<AccordionHandle | null>(null);
+  const bottomBarRef = useRef<HTMLDivElement | null>(null);
+  const messagesAccordionRef = useRef<AccordionHandle | null>(null);
 
   useEffect(() => {
     const apiKey = localStorage.getItem("apiKey");
@@ -109,6 +117,9 @@ export default function Home() {
     setOutputCode(codes);
     setDiagramDescriptions(descriptions);
     setVisibleDiagrams(new Array(codes.length).fill(true));
+  // Associate each generated diagram with the originating message index (the message we just pushed)
+  const originIndex = newMessages.length - 1;
+  setDiagramOrigins(parsed.map(() => originIndex));
 
     // Extract titles: use AI-provided titles or fall back to type detection
     const extractType = (code: string): string => {
@@ -155,51 +166,146 @@ export default function Home() {
     setVisibleDiagrams(prev => prev.map((visible, i) => i === index ? !visible : visible));
   };
 
+  // measure bottom fixed bar and set body padding so content is never hidden
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const setVar = (h: number) => {
+      try {
+        document.documentElement.style.setProperty('--bottom-bar-height', `${Math.ceil(h)}px`);
+      } catch {}
+    };
+
+    const el = bottomBarRef.current;
+    if (el) setVar(el.getBoundingClientRect().height);
+
+    // Use a ResizeObserver so changes to bottom bar height (selector open/close) update padding
+    let ro: ResizeObserver | null = null;
+    try {
+      ro = new ResizeObserver(entries => {
+        for (const entry of entries) {
+          const h = entry.contentRect?.height || 0;
+          setVar(h);
+        }
+      });
+      if (el) ro.observe(el);
+    } catch {
+      // Fallback: listen to resize
+      const onResize = () => {
+        const el2 = bottomBarRef.current;
+        if (el2) setVar(el2.getBoundingClientRect().height);
+      };
+      window.addEventListener('resize', onResize);
+      return () => window.removeEventListener('resize', onResize);
+    }
+
+    return () => {
+      if (ro && el) ro.unobserve(el);
+    };
+  }, [showSelector, outputCode.length, messages.length]);
+
   return (
-    <main className="container flex-1 w-full flex flex-wrap">
-      <div className="flex border md:border-r-0 flex-col justify-between w-full md:w-1/2">
-        <div className="">
-          <div className="">
-            {messages.map((message, index) => {
-              return (
-                <ChatMessage key={index} message={message.content} />
-              );
-            })}
-          </div>
+    <main className="flex-1 w-full flex flex-col">
+      {/* Messages area: each user message is foldable */}
+      <div className="flex-1 overflow-y-auto p-2">
+        <div className="mb-2 flex gap-2">
+          <button onClick={() => messagesAccordionRef.current?.openAll()} className="px-2 py-1 bg-gray-100 rounded flex items-center gap-1">
+            <Plus className="h-4 w-4" />
+            <span className="text-sm">Expand all</span>
+          </button>
+          <button onClick={() => messagesAccordionRef.current?.closeAll()} className="px-2 py-1 bg-gray-100 rounded flex items-center gap-1">
+            <span className="text-sm">Collapse all</span>
+          </button>
         </div>
-        <div className="w-full p-2">
-        <DiagramSelector
-        selectedDiagrams={selectedDiagrams}
-        onSelectionChange={setSelectedDiagrams}
-        />
-        <ChatInput
-            messageContent={draftMessage}
-            onChange={setDraftMessage}
-            onSubmit={handleSubmit}
-          />
+        <Accordion ref={messagesAccordionRef}>
+          {messages.map((message, index) => (
+            <AccordionItem key={index} id={`message-${index}`} title={`User input ${index + 1}`}>
+              <ChatMessage message={message.content} />
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </div>
+
+      {/* Generated code and diagrams area. Each diagram has its own foldable group containing three foldable sections */}
+      <div className="flex-1 border-t p-2 overflow-y-auto">
+        <CodeBlock code={draftOutputCode} />
+        <div className="mt-4">
+          <div className="flex gap-2 mb-2">
+            <button onClick={() => diagramsAccordionRef.current?.openAll()} className="px-2 py-1 bg-gray-100 rounded">Expand all</button>
+            <button onClick={() => diagramsAccordionRef.current?.closeAll()} className="px-2 py-1 bg-gray-100 rounded">Collapse all</button>
+          </div>
+          <Accordion ref={diagramsAccordionRef}>
+            {outputCode.map((code, index) => (
+              <AccordionItem key={index} id={`diagram-${index}`} title={diagramTitles[index]}>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm text-gray-600">Origin</div>
+                      <button
+                        onClick={() => toggleDiagramVisibility(index)}
+                        className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300"
+                      >
+                        {visibleDiagrams[index] ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
+                    <div className="border rounded p-2 bg-white">
+                      <p className="whitespace-pre-wrap text-sm text-gray-800">
+                        {typeof diagramOrigins[index] === 'number' && messages[diagramOrigins[index]]
+                          ? messages[diagramOrigins[index]].content
+                          : messages.length
+                          ? messages[messages.length - 1].content
+                          : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-medium mb-2">Mermaid Syntax</div>
+                    <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-2 rounded">{code}</pre>
+                  </div>
+
+                  <div>
+                    <div className="text-sm font-medium mb-2">Diagram</div>
+                    {diagramDescriptions[index] && (
+                      <p className="text-sm text-gray-700 mb-2">{diagramDescriptions[index]}</p>
+                    )}
+                    {visibleDiagrams[index] && <Mermaid chart={code} />}
+                  </div>
+                </div>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
       </div>
-      <div className="border w-full md:w-1/2 p-2 flex flex-col">
-        <CodeBlock code={draftOutputCode} />
 
-        <div className="flex-1 border relative overflow-y-auto">
-          {outputCode.map((code, index) => (
-          <div key={index} className="mb-4 border rounded p-2">
+      {/* Fixed bottom area: foldable DiagramSelector above a persistent ChatInput */}
+  <div ref={bottomBarRef} className="fixed left-0 right-0 bottom-0 z-30 bg-white border-t p-2">
+        <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-semibold">{diagramTitles[index]}</h3>
-          <button
-          onClick={() => toggleDiagramVisibility(index)}
-          className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300"
-          >
-          {visibleDiagrams[index] ? 'Hide' : 'Show'}
-          </button>
+            <button
+              onClick={() => setShowSelector(prev => !prev)}
+              className="px-3 py-1 bg-gray-100 rounded"
+            >
+              {showSelector ? 'Hide Diagram Types' : 'Show Diagram Types'}
+            </button>
+            <div className="text-sm text-gray-500">Input box is fixed at bottom</div>
           </div>
-          {diagramDescriptions[index] && (
-            <p className="text-sm text-gray-700 mb-2">{diagramDescriptions[index]}</p>
+          {showSelector && (
+            <div className="mb-2">
+              <DiagramSelector
+                selectedDiagrams={selectedDiagrams}
+                onSelectionChange={setSelectedDiagrams}
+              />
+            </div>
           )}
-          {visibleDiagrams[index] && <Mermaid chart={code} />}
+
+          <div>
+            <ChatInput
+              messageContent={draftMessage}
+              onChange={setDraftMessage}
+              onSubmit={handleSubmit}
+            />
           </div>
-          ))}
         </div>
       </div>
     </main>

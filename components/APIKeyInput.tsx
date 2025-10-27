@@ -46,6 +46,7 @@ export const APIKeyInput = () => {
       });
       if (!res.ok) throw new Error("Failed to fetch models");
       const data = await res.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setAvailableModels(data.data.map((m: any) => m.id).sort());
     } catch (err) {
       console.error(err);

@@ -32,11 +32,16 @@ export default function RootLayout({
       </head>
       <body
         className={cn(
-          "min-h-screen bg-white font-sans text-slate-900 antialiased flex flex-col"
+          "min-h-screen bg-white font-sans text-slate-900 antialiased flex flex-col",
+          // compensate for fixed header (top). bottom padding is set via CSS variable --bottom-bar-height
+          "pt-16"
           // fontSans.variable
         )}
+        // allow dynamic bottom padding via CSS variable (set by client)
+        style={{ paddingBottom: 'var(--bottom-bar-height, 8rem)' }}
       >
         <SiteHeader />
+
         {children}
 
         <Analytics />
