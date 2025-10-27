@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import mermaid from "mermaid";
 import { Copy, Palette } from "lucide-react";
 
 import {
@@ -79,13 +78,34 @@ export default function Mermaid({ chart }: { chart: string }) {
     const container = ref.current;
     if (chart !== "" && container && theme !== "") {
       container.removeAttribute("data-processed");
-      mermaid.mermaidAPI.initialize({
-      startOnLoad: false,
-      securityLevel: "strict",
-      theme,
-      logLevel: 5,
+
+      // Dynamically import mermaid on the client to avoid server-side bundling
+      const mmod = await import("mermaid");
+      // support both default and named exports
+      const mermaid = (mmod && (mmod.default ?? mmod)) as any;
+
+      // Mermaid v11 API: use initialize() directly
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "strict",
+        theme,
       });
-      await mermaid.run();
+
+      // Try to render directly into the container
+      try {
+        const id = `mermaid-${Date.now()}`;
+        const { svg } = await mermaid.render(id, chart);
+        container.innerHTML = svg;
+      } catch (err) {
+        // Fallback: insert the raw chart and let mermaid.run process it
+        container.innerHTML = `<div class="mermaid">${chart}</div>`;
+        try {
+          await mermaid.run({ nodes: [container] });
+        } catch (e) {
+          // swallow: rendering failed
+          console.error("Mermaid render error", e);
+        }
+      }
     }
   }, []);
 
@@ -97,19 +117,28 @@ export default function Mermaid({ chart }: { chart: string }) {
     setTheme(value);
     localStorage.setItem("theme", value);
 
-    // rerender chart
+    // rerender chart using client-only mermaid
     const container = ref.current;
-    if (container) {
+    if (container && chart) {
       container.removeAttribute("data-processed");
-      mermaid.mermaidAPI.initialize({
-      startOnLoad: false,
-      securityLevel: "strict",
-      theme: value,
-      logLevel: 5,
-      });
-      const { svg } = await mermaid.mermaidAPI.render("id", chart);
-      if (ref.current) {
-        ref.current.innerHTML = svg;
+      try {
+        const mmod = await import("mermaid");
+        const mermaid = (mmod && (mmod.default ?? mmod)) as any;
+        
+        // Mermaid v11 API
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: value,
+        });
+        
+        const { svg } = await mermaid.render(`mermaid-${Date.now()}`, chart);
+        if (ref.current) {
+          ref.current.innerHTML = svg;
+        }
+      } catch (e) {
+        // fallback: let drawChart handle failures on next effect
+        console.error("Mermaid theme render error", e);
       }
     }
   };

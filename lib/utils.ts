@@ -2,8 +2,7 @@ import { ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import {
   createParser,
-  ParsedEvent,
-  ReconnectInterval,
+  type EventSourceMessage,
 } from "eventsource-parser";
 import endent from "endent";
 import { deflate } from "pako";
@@ -102,8 +101,8 @@ const userMessage = messages[messages.length - 1]?.content || '';
 
   const stream = new ReadableStream({
     async start(controller) {
-      const onParse = (event: ParsedEvent | ReconnectInterval) => {
-        if (event.type === "event") {
+      const parser = createParser({
+        onEvent: (event: EventSourceMessage) => {
           const data = event.data;
 
           if (data === "[DONE]") {
@@ -119,10 +118,8 @@ const userMessage = messages[messages.length - 1]?.content || '';
           } catch (e) {
             controller.error(e);
           }
-        }
-      };
-
-      const parser = createParser(onParse);
+        },
+      });
 
       for await (const chunk of res.body as any) {
         parser.feed(decoder.decode(chunk));
